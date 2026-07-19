@@ -203,12 +203,19 @@ class _ChatScreenState extends State<ChatScreen> {
   ) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _chatService
-          .markReceivedMessagesSeen(
-            currentUserId: currentUserId,
-            partnerId: partnerId,
-            messages: messages,
-          )
-          .catchError((_) {});
+    .markReceivedMessagesSeen(
+      currentUserId: currentUserId,
+      partnerId: partnerId,
+      messages: messages,
+    )
+    .then((_) {
+      return _chatService.resetUnreadCount(
+        currentUserId: currentUserId,
+        partnerId: partnerId,
+      );
+    })
+    .catchError((_) {});
+          
     });
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
 import '../chat/chat_list_screen.dart';
+import '../chat/search_users_screen.dart';
 import '../memories/memories_screen.dart';
 import '../profile/profile_screen.dart';
 import '../../core/theme/app_gradients.dart';
@@ -28,9 +29,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   late final List<Widget> pages = [
     const HomePage(),
-    const ChatListScreen(),
+   ChatListScreen(),
     const MemoriesScreen(),
-    const ProfileScreen(),
+     ProfileScreen(),
   ];
 
   @override
@@ -40,13 +41,27 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('SoulSync ❤️'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await _authService.signOut();
-            },
+  if (selectedIndex == 1)
+    IconButton(
+      icon: const Icon(Icons.person_add_alt_1),
+      tooltip: 'Connect',
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const SearchUsersScreen(),
           ),
-        ],
+        );
+      },
+    ),
+
+  IconButton(
+    icon: const Icon(Icons.logout),
+    onPressed: () async {
+      await _authService.signOut();
+    },
+  ),
+],
       ),
       body: pages[selectedIndex],
       bottomNavigationBar: FloatingNavBar(

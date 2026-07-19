@@ -1,11 +1,12 @@
 class ChatModel {
   final String chatId;
   final List<String> members;
-
   final String lastMessage;
   final DateTime? lastMessageAt;
-
   final Map<String, dynamic> memberInfo;
+
+  // NEW
+  final Map<String, dynamic> unreadCounts;
 
   ChatModel({
     required this.chatId,
@@ -13,6 +14,7 @@ class ChatModel {
     required this.lastMessage,
     required this.lastMessageAt,
     required this.memberInfo,
+    required this.unreadCounts,
   });
 
   factory ChatModel.fromFirestore(dynamic doc) {
@@ -25,6 +27,11 @@ class ChatModel {
       lastMessageAt: data['lastMessageAt']?.toDate(),
       memberInfo: Map<String, dynamic>.from(
         data['memberInfo'] ?? {},
+      ),
+
+      // NEW
+      unreadCounts: Map<String, dynamic>.from(
+        data['unreadCounts'] ?? {},
       ),
     );
   }

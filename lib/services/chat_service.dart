@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../models/chat_model.dart';
 import '../models/message_model.dart';
-import 'profile_service.dart';
 
 class ChatService {
   ChatService({
@@ -11,51 +9,14 @@ class ChatService {
 
   final FirebaseFirestore _firestore;
 
-  final ProfileService _profileService = ProfileService();
-
-  String getChatId(
-    String firstUserId,
-    String secondUserId,
-  ) {
-    final ids = [firstUserId, secondUserId]..sort();
-    return '${ids.first}_${ids.last}';
-  }
-
-  // =========================
-  // CHAT LIST
-  // =========================
-
-  Stream<List<ChatModel>> chatList(String currentUserId) {
-    return _firestore
-        .collection('chats')
-        .where(
-          'members',
-          arrayContains: currentUserId,
-        )
-        .orderBy(
-          'lastMessageAt',
-          descending: true,
-        )
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map(ChatModel.fromFirestore)
-              .toList(growable: false),
-        );
-  }
-
   // =========================
   // MESSAGES
   // =========================
 
   Stream<List<MessageModel>> messages({
-    required String currentUserId,
-    required String partnerId,
+    required String connectionId,
   }) {
-    return _messagesReference(
-      currentUserId,
-      partnerId,
-    )
+    return _messagesReference(connectionId)
         .orderBy(
           'sentAt',
           descending: true,
@@ -69,98 +30,80 @@ class ChatService {
         );
   }
 
+  // =========================
+  // SEND MESSAGE
+  // =========================
+
   Future<void> sendMessage({
-    required String currentUserId,
-    required String partnerId,
+    required String connectionId,
+    required String senderId,
     required String text,
   }) async {
     final trimmed = text.trim();
 
     if (trimmed.isEmpty) return;
 
-    final currentProfile =
-        await _profileService.getProfile(currentUserId);
+    final conversationRef = _conversationReference(connectionId);
 
-    final partnerProfile =
-        await _profileService.getProfile(partnerId);
-
-    final chatRef = _chatReference(
-      currentUserId,
-      partnerId,
-    );
-
-    final messageRef = chatRef.collection('messages').doc();
+    final messageRef = conversationRef
+        .collection('messages')
+        .doc();
 
     final batch = _firestore.batch();
 
     batch.set(
-      chatRef,
+      conversationRef,
       {
-        'members': [currentUserId, partnerId]..sort(),
-
-        'memberInfo': {
-          currentUserId: {
-            'uid': currentUserId,
-            'fullName':
-                currentProfile?['fullName'] ?? 'Unknown',
-            'photoUrl':
-                currentProfile?['photoUrl'] ?? '',
-          },
-
-          partnerId: {
-            'uid': partnerId,
-            'fullName':
-                partnerProfile?['fullName'] ?? 'Unknown',
-            'photoUrl':
-                partnerProfile?['photoUrl'] ?? '',
-          },
-        },
-
         'lastMessage': trimmed,
-        'lastMessageAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'lastMessageTime': FieldValue.serverTimestamp(),
+        'lastMessageSenderId': senderId,
       },
       SetOptions(
         merge: true,
       ),
     );
 
-        batch.set(
+    batch.set(
       messageRef,
       {
-        'senderId': currentUserId,
+        'senderId': senderId,
         'text': trimmed,
         'sentAt': FieldValue.serverTimestamp(),
-        'seen': false,
+        'seenBy': [senderId],
       },
     );
 
     await batch.commit();
   }
 
-  Future<void> markReceivedMessagesSeen({
+  // =========================
+  // MARK SEEN
+  // =========================
+
+  Future<void> markMessagesSeen({
+    required String connectionId,
     required String currentUserId,
-    required String partnerId,
     required List<MessageModel> messages,
   }) async {
     final unread = messages.where(
-      (m) => !m.seen && m.senderId != currentUserId,
+      (message) =>
+          message.senderId != currentUserId &&
+          !message.isSeenBy(currentUserId),
     );
 
     if (unread.isEmpty) return;
 
     final batch = _firestore.batch();
 
-    final ref = _messagesReference(
-      currentUserId,
-      partnerId,
-    );
+    final ref = _messagesReference(connectionId);
 
     for (final message in unread) {
       batch.update(
         ref.doc(message.id),
         {
-          'seen': true,
+          'seenBy': FieldValue.arrayUnion(
+            [currentUserId],
+          ),
         },
       );
     }
@@ -168,27 +111,25 @@ class ChatService {
     await batch.commit();
   }
 
-  DocumentReference<Map<String, dynamic>> _chatReference(
-    String currentUserId,
-    String partnerId,
+  // =========================
+  // REFERENCES
+  // =========================
+
+  DocumentReference<Map<String, dynamic>>
+      _conversationReference(
+    String connectionId,
   ) {
     return _firestore
-        .collection('chats')
-        .doc(
-          getChatId(
-            currentUserId,
-            partnerId,
-          ),
-        );
+        .collection('conversations')
+        .doc(connectionId);
   }
 
-  CollectionReference<Map<String, dynamic>> _messagesReference(
-    String currentUserId,
-    String partnerId,
+  CollectionReference<Map<String, dynamic>>
+      _messagesReference(
+    String connectionId,
   ) {
-    return _chatReference(
-      currentUserId,
-      partnerId,
+    return _conversationReference(
+      connectionId,
     ).collection('messages');
   }
 }
